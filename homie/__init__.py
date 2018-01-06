@@ -1,38 +1,10 @@
 import sys
 import utime
-import machine
-import network
-import ubinascii
+
 
 from umqtt.simple import MQTTClient
+from homie.settings import CONFIG
 
-
-__version__ = b'0.1.0'
-
-
-# Default config
-CONFIG = {
-    'mqtt': {
-        'broker': '127.0.0.1',
-        'port': 0,
-        'user': None,
-        'pass': None,
-        'keepalive': 60,
-        'ssl': False,
-        'ssl_params': {},
-        'base_topic': b'homie'
-    },
-    'device': {
-        'id': ubinascii.hexlify(machine.unique_id()),
-        'name': b'mydevice',
-        'fwname': b'uhomie',
-        'fwversion': __version__,
-        'localip': bytes(network.WLAN(0).ifconfig()[0], 'utf-8'),
-        'mac': ubinascii.hexlify(network.WLAN(0).config('mac'), ':'),
-        'platform': bytes(sys.platform, 'utf-8'),
-        'stats_interval': 60
-    }
-}
 
 
 class HomieDevice:
