@@ -1,6 +1,4 @@
 import sys
-import machine
-import network
 import ubinascii
 
 __version__ = b'0.1.0'
