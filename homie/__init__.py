@@ -1,49 +1,40 @@
-import sys
 import utime
 
-
 from umqtt.simple import MQTTClient
-from homie.settings import CONFIG
-
 
 
 class HomieDevice:
 
     """ MicroPython implementation of the homie v2 convention. """
 
-    def __init__(self, cfg=None):
+    def __init__(self, settings=None):
+        self.settings = settings
+
         self.nodes = []
         self.node_ids = []
         self.topic_callbacks = {}
 
-        # update config
-        if cfg is not None:
-            if 'mqtt' in cfg:
-                CONFIG['mqtt'].update(cfg['mqtt'])
-            if 'device' in cfg:
-                CONFIG['device'].update(cfg['device'])
-
         self.start_time = utime.time()
         self.next_update = utime.time()
-        self.stats_interval = CONFIG['device']['stats_interval']
+        self.stats_interval = self.settings.DEVICE_STATS_INTERVAL
 
         # base topic
-        self.topic = b'/'.join((CONFIG['mqtt']['base_topic'],
-                               CONFIG['device']['id']))
+        self.topic = b'/'.join((self.settings.MQTT_BASE_TOPIC,
+                                self.settings.DEVICE_ID))
 
         self._umqtt_connect()
 
     def _umqtt_connect(self):
         # mqtt client
         self.mqtt = MQTTClient(
-            CONFIG['device']['id'],
-            CONFIG['mqtt']['broker'],
-            port=CONFIG['mqtt']['port'],
-            user=CONFIG['mqtt']['user'],
-            password=CONFIG['mqtt']['pass'],
-            keepalive=CONFIG['mqtt']['keepalive'],
-            ssl=CONFIG['mqtt']['ssl'],
-            ssl_params=CONFIG['mqtt']['ssl_params'])
+            self.settings.DEVICE_ID,
+            self.settings.MQTT_BROKER,
+            port=self.settings.MQTT_PORT,
+            user=self.settings.MQTT_USERNAME,
+            password=self.settings.MQTT_PASSWORD,
+            keepalive=self.settings.MQTT_KEEPALIVE,
+            ssl=self.settings.MQTT_SSL,
+            ssl_params=self.settings.MQTT_SSL_PARAMS)
 
         # set callback
         self.mqtt.set_callback(self.sub_cb)
@@ -115,11 +106,11 @@ class HomieDevice:
         properties = (
             (b'$homie', b'2.1.0', True),
             (b'$online', b'true', True),
-            (b'$fw/name', CONFIG['device']['fwname'], True),
-            (b'$fw/version', CONFIG['device']['fwversion'], True),
-            (b'$implementation', CONFIG['device']['platform'], True),
-            (b'$localip', CONFIG['device']['localip'], True),
-            (b'$mac', CONFIG['device']['mac'], True),
+            (b'$fw/name', self.settings.DEVICE_FW_NAME, True),
+            (b'$fw/version', self.settings.DEVICE_FW_VERSION, True),
+            (b'$implementation', self.settings.DEVICE_PLATFORM, True),
+            (b'$localip', self.settings.DEVICE_LOCALIP, True),
+            (b'$mac', self.settings.DEVICE_MAC, True),
             (b'$stats/interval', self.stats_interval, True),
             (b'$nodes', b','.join(self.node_ids), True)
         )
