@@ -7,7 +7,7 @@ class HomieDevice:
 
     """ MicroPython implementation of the homie v2 convention. """
 
-    def __init__(self, settings=None):
+    def __init__(self, settings):
         self.settings = settings
 
         self.nodes = []
