@@ -19,8 +19,8 @@ Reading format. See http://cl.ly/ekot
 
 SDS011 -- ESP
 
-TX -- RX
-RX -- D4 (TX1)
+TX -- RX (16)
+RX -- TX (17)
 5v -- 5v
 GND -- GND
 
