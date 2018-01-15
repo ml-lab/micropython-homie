@@ -29,14 +29,14 @@ GND -- GND
 
 import machine
 import ustruct as struct
-import mqtt
 import sys
 import utime as time
 from . import HomieNode
 
 
 def init_uart(x):
-    uart = machine.UART(x, 9600)
+    #uart = machine.UART(x, 9600)
+    uart = machine.UART(2, baudrate=9600, rx=16, tx=17, timeout=10)
     uart.init(9600, bits=8, parity=None, stop=1)
     return uart
 
@@ -46,19 +46,19 @@ CMDS = {'SET': b'\x01',
         'SLEEPWAKE': b'\x06'}
 
 
-class SDS001(HomieNode):
+class SDS011(HomieNode):
 
-    def __init__(self, pin=4, interval=60):
-        super(SDS001, self).__init__(interval=interval)
+    def __init__(self, interval=60):
+        super(SDS011, self).__init__(interval=interval)
         self.pm25 = 0
         self.pm10 = 0
         self.packet_status = True
-        
+
     def __str__(self):
-        return 'SDS001: PM 2.5 = {}, PM 10 = {}'.format(self.pm25, self.pm10)
+        return 'SDS011: PM 2.5 = {}, PM 10 = {}'.format(self.pm25, self.pm10)
 
     def get_node_id(self):
-        return [b'pm25', 'pm10', 'packet_status']
+        return [b'pm25', b'pm10', b'packet_status']
 
     def get_properties(self):
         return (
@@ -74,7 +74,7 @@ class SDS001(HomieNode):
             (b'pm10/concentration/$settable', b'false'),
             (b'pm10/concentration/$unit', b'mg/m3'),
             (b'pm10/concentration/$datatype', b'float'),
-            (b'pm10/concentration/$format', b'20.0:60')
+            (b'pm10/concentration/$format', b'20.0:60'),
 
             (b'packet_status/$type', b'pm10'),
             (b'packet_status/$properties', b'valid'),
@@ -84,7 +84,7 @@ class SDS001(HomieNode):
             (b'packet_status/valid/$format', b'20.0:60')
         )
 
-    
+
     def get_data(self):
         return (
             (b'pm25/amount', self.pm25),
@@ -104,7 +104,7 @@ class SDS001(HomieNode):
         cmd = self.make_command(CMDS['SLEEPWAKE'], CMDS['SET'], chr(1))
         print('Sending wake command to sds011:', cmd)
         uart.write(cmd)
-        
+
     def sleep(self):
         uart = init_uart(1)
         cmd = self.make_command(CMDS['SLEEPWAKE'], CMDS['SET'], chr(0))
@@ -125,15 +125,15 @@ class SDS001(HomieNode):
                     if command == b'\xc0':
                         packet = uart.read(8)
                         *data, checksum, tail = struct.unpack("<HHBBBs", packet)
-                        
+
                         #verify packet
                         checksum_OK = checksum == (sum(data) % 256)
                         tail_OK = tail == b'\xab'
-                        
+
                         self.pm25 = data[0]/10.0
                         self.pm10 = data[1]/10.0
                         self.packet_status = 'OK' if (checksum_OK and tail_OK) else 'NOK'
-                        
+
                     elif command == b'\xc5':
                         packet = uart.read(8)
                         print('Reply received:', packet)
@@ -142,5 +142,3 @@ class SDS001(HomieNode):
                 print('Problem attempting to read:', e)
                 sys.print_exception(e)
         self.sleep()
-        
-        
