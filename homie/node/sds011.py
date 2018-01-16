@@ -1,28 +1,22 @@
-"""
-Taken form https://github.com/g-sam/polly
+# -*- coding: utf-8 -*-
+"""Node for the SDS011 airquality sensor with the UART protocoll.
 
-Reading format. See http://cl.ly/ekot
-0 Header   '\xaa'
-1 Command  '\xc0'
-2 DATA1    PM2.5 Low byte
-3 DATA2    PM2.5 High byte
-4 DATA3    PM10 Low byte
-5 DATA4    PM10 High byte
-6 DATA5    ID byte 1
-7 DATA6    ID byte 2
-8 Checksum Low byte of sum of DATA bytes
-9 Tail     '\xab'
+This node only works for micropython on the ESP32. As of this writing,
+the ESP8266 implementation of micropython does not implement the required
+UART functions.
 
 
+Inspired by https://github.com/g-sam/polly
 
 
+Wiring of the sensor works as follows:
 
-SDS011 -- ESP
+SDS011  --  ESP32
 
-TX -- RX (16)
-RX -- TX (17)
-5v -- 5v
-GND -- GND
+TX      --  RX (16)
+RX      --  TX (17)
+5v      --  5v
+GND     --  GND
 
 
 """
@@ -34,12 +28,6 @@ import utime as time
 from . import HomieNode
 
 
-def init_uart(x):
-    #uart = machine.UART(x, 9600)
-    uart = machine.UART(2, baudrate=9600, rx=16, tx=17, timeout=10)
-    uart.init(9600, bits=8, parity=None, stop=1)
-    return uart
-
 CMDS = {'SET': b'\x01',
         'GET': b'\x00',
         'DUTYCYCLE': b'\x08',
@@ -48,11 +36,13 @@ CMDS = {'SET': b'\x01',
 
 class SDS011(HomieNode):
 
-    def __init__(self, interval=60):
+    def __init__(self, interval=60, allowed_time=20, rx=16, tx=17):
         super(SDS011, self).__init__(interval=interval)
         self.pm25 = 0
         self.pm10 = 0
         self.packet_status = True
+        self.allowed_time = allowed_time
+        self.uart = machine.UART(2, baudrate=9600, rx=rx, tx=tx, timeout=10, bits=8, parity=None, stop=1)
 
     def __str__(self):
         return 'SDS011: PM 2.5 = {}, PM 10 = {}'.format(self.pm25, self.pm10)
@@ -87,8 +77,8 @@ class SDS011(HomieNode):
 
     def get_data(self):
         return (
-            (b'pm25/amount', self.pm25),
-            (b'pm10/amount', self.pm10),
+            (b'pm25/concentration', self.pm25),
+            (b'pm10/concentration', self.pm10),
             (b'packet_status/valid', self.packet_status)
         )
 
@@ -100,30 +90,27 @@ class SDS011(HomieNode):
         return header + cmd + mode + param + padding + bytes(checksum, 'utf8') + tail
 
     def wake(self):
-        uart = init_uart(1)
         cmd = self.make_command(CMDS['SLEEPWAKE'], CMDS['SET'], chr(1))
         print('Sending wake command to sds011:', cmd)
-        uart.write(cmd)
+        self.uart.write(cmd)
 
     def sleep(self):
-        uart = init_uart(1)
         cmd = self.make_command(CMDS['SLEEPWAKE'], CMDS['SET'], chr(0))
         print('Sending sleep command to sds011:', cmd)
-        uart.write(cmd)
+        self.uart.write(cmd)
 
 
-    def update_data(self, allowed_time=20):
+    def update_data(self):
         self.wake()
-        uart = init_uart(0)
         start_time = time.ticks_ms()
         delta_time = 0
-        while (delta_time <= allowed_time * 1000):
+        while (delta_time <= self.allowed_time * 1000):
             try:
-                header = uart.read(1)
+                header = self.uart.read(1)
                 if header == b'\xaa':
-                    command = uart.read(1)
+                    command = self.uart.read(1)
                     if command == b'\xc0':
-                        packet = uart.read(8)
+                        packet = self.uart.read(8)
                         *data, checksum, tail = struct.unpack("<HHBBBs", packet)
 
                         #verify packet
@@ -132,12 +119,12 @@ class SDS011(HomieNode):
 
                         self.pm25 = data[0]/10.0
                         self.pm10 = data[1]/10.0
-                        self.packet_status = 'OK' if (checksum_OK and tail_OK) else 'NOK'
+                        self.packet_status = True if (checksum_OK and tail_OK) else False
 
                     elif command == b'\xc5':
-                        packet = uart.read(8)
-                        print('Reply received:', packet)
-                delta_time = time.ticks_diff(time.ticks_ms(), start_time) if allowed_time else 0
+                        packet = self.uart.read(8)
+                        print('Reply received but not implemented:', packet)
+                delta_time = time.ticks_diff(time.ticks_ms(), start_time) if self.allowed_time else 0
             except Exception as e:
                 print('Problem attempting to read:', e)
                 sys.print_exception(e)
